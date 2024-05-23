@@ -38,7 +38,6 @@ class SimpleTokenizer:
         return ' '.join([self.idx2word[token] for token in token_ids])
 
 tokenizer = SimpleTokenizer()
-
 #3. Defining the BERT Model from Scratch-----------------------------------------------------------
 
 import torch.nn as nn
@@ -189,10 +188,11 @@ for epoch in range(3):  # 3 epochs for demonstration
         attention_mask = (inputs != 0).float()  # 0 is the pad token ID
 
         outputs = model(inputs, attention_mask)
-        outputs = outputs.view(-1, vocab_size)
+        logits = outputs.view(-1, vocab_size)
         labels = labels.view(-1)
         
-        loss = criterion(outputs, labels)
+        # Ensure the logits and labels are properly aligned in dimensions
+        loss = criterion(logits, labels)
 
         optimizer.zero_grad()
         loss.backward()
@@ -203,7 +203,6 @@ for epoch in range(3):  # 3 epochs for demonstration
 
 # Save the pre-trained model
 torch.save(model.state_dict(), './bert_pretrained.pth')
-
 
 
 
