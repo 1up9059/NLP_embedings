@@ -1,5 +1,4 @@
-
-#1. Extracting Text from a PDF
+#1. Extracting Text from a PDF--------------------------------------------------------------------------------------------
 import fitz  # PyMuPDF
 
 def extract_text_from_pdf(pdf_path):
@@ -12,8 +11,8 @@ def extract_text_from_pdf(pdf_path):
 
 pdf_path = 'path/to/your/pdf_file.pdf'
 corpus_text = extract_text_from_pdf(pdf_path)
-#---------------------------------------------------------------------------------------------------------------------------
-# Tokenizing the Text
+
+#2. Tokenizing the Text--------------------------------------------------------------------------------------------------
 
 from collections import Counter
 import numpy as np
@@ -40,9 +39,8 @@ class SimpleTokenizer:
 
 tokenizer = SimpleTokenizer()
 
+#3. Defining the BERT Model from Scratch-----------------------------------------------------------
 
-#----------------------------------------------------------------------------------------------------------------------------
-#Defining the BERT Model from Scratch
 import torch.nn as nn
 import math
 
@@ -128,31 +126,33 @@ class BertModel(nn.Module):
         
         return hidden_states
     
+#4. Masked Language Modeling (Object-Oriented)------------------------------------------------------------
+
+
+class MaskedLanguageModeling:
+    def __init__(self, tokenizer, mlm_probability=0.15):
+        self.tokenizer = tokenizer
+        self.mlm_probability = mlm_probability
+        self.vocab_size = len(tokenizer.word2idx)
+
+    def mask_tokens(self, inputs):
+        labels = inputs.clone()
+        probability_matrix = torch.full(labels.shape, self.mlm_probability)
+        special_tokens_mask = [[1 if token in [0, 1] else 0 for token in seq] for seq in labels.tolist()]
+        probability_matrix.masked_fill_(torch.tensor(special_tokens_mask, dtype=torch.bool), value=0.0)
+        masked_indices = torch.bernoulli(probability_matrix).bool()
+        labels[~masked_indices] = -100  # We only compute loss on masked tokens
+
+        indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+        inputs[indices_replaced] = self.tokenizer.word2idx.get('[MASK]', 3)  # Mask token ID (default to 3)
+
+        indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
+        random_words = torch.randint(self.vocab_size, labels.shape, dtype=torch.long)
+        inputs[indices_random] = random_words[indices_random]
+
+        return inputs, labels
     
-#--------------------------------------------------------------------------------------------------------------------
- #4. Masked Language Modeling (Object-Oriented)   
-import random
-
-def mask_tokens(inputs, vocab_size, mlm_probability=0.15):
-    labels = inputs.clone()
-    probability_matrix = torch.full(labels.shape, mlm_probability)
-    special_tokens_mask = [[1 if token in [0, 1] else 0 for token in seq] for seq in labels.tolist()]
-    probability_matrix.masked_fill_(torch.tensor(special_tokens_mask, dtype=torch.bool), value=0.0)
-    masked_indices = torch.bernoulli(probability_matrix).bool()
-    labels[~masked_indices] = -100  # We only compute loss on masked tokens
-
-    indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
-    inputs[indices_replaced] = 3  # Mask token ID (you can define your own)
-
-    indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
-    random_words = torch.randint(vocab_size, labels.shape, dtype=torch.long)
-    inputs[indices_random] = random_words[indices_random]
-
-    return inputs, labels    
-
-
-#--------------------------------------------------------------------------------------------------------------------
-
+#5. Training Loop------------------------------------------------------------------------------------
 
 from torch.utils.data import DataLoader, Dataset
 
@@ -176,6 +176,9 @@ texts = corpus_text.split('\n')  # Assume each line is a separate text
 dataset = TextDataset(texts, tokenizer)
 dataloader = DataLoader(dataset, batch_size=8, shuffle=True)
 
+# Initialize MaskedLanguageModeling
+mlm = MaskedLanguageModeling(tokenizer)
+
 # Define model, optimizer, and loss function
 vocab_size = len(tokenizer.word2idx)
 model = BertModel(vocab_size=vocab_size, hidden_size=768, num_hidden_layers=12, num_attention_heads=12, intermediate_size=3072, max_position_embeddings=512, dropout_prob=0.1)
@@ -186,7 +189,7 @@ criterion = nn.CrossEntropyLoss()
 model.train()
 for epoch in range(3):  # 3 epochs for demonstration
     for step, batch in enumerate(dataloader):
-        inputs, labels = mask_tokens(batch, vocab_size)
+        inputs, labels = mlm.mask_tokens(batch)
         attention_mask = (inputs != 0).float()  # 0 is the pad token ID
 
         outputs = model(inputs, attention_mask)
