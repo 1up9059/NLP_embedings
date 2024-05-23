@@ -73,7 +73,7 @@ class BertSelfAttention(nn.Module):
 
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-        attention_scores = attention_scores + attention_mask
+        attention_scores = attention_scores + attention_mask.unsqueeze(1).unsqueeze(2)
 
         attention_probs = nn.Softmax(dim=-1)(attention_scores)
         attention_probs = self.dropout(attention_probs)
@@ -151,7 +151,6 @@ class MaskedLanguageModeling:
         inputs[indices_random] = random_words[indices_random]
 
         return inputs, labels
-    
 #5. Training Loop------------------------------------------------------------------------------------
 
 from torch.utils.data import DataLoader, Dataset
@@ -193,7 +192,10 @@ for epoch in range(3):  # 3 epochs for demonstration
         attention_mask = (inputs != 0).float()  # 0 is the pad token ID
 
         outputs = model(inputs, attention_mask)
-        loss = criterion(outputs.view(-1, vocab_size), labels.view(-1))
+        outputs = outputs.view(-1, vocab_size)
+        labels = labels.view(-1)
+        
+        loss = criterion(outputs, labels)
 
         optimizer.zero_grad()
         loss.backward()
@@ -204,3 +206,12 @@ for epoch in range(3):  # 3 epochs for demonstration
 
 # Save the pre-trained model
 torch.save(model.state_dict(), './bert_pretrained.pth')
+
+
+
+
+
+
+
+
+
